@@ -3,7 +3,7 @@
 \usepackage{geometry}
 \usepackage{blindtext}
 \usepackage[sort, numbers]{natbib}
-
+\usepackage{graphicx}
 %\renewcommand{\familydefault}{\sfdefault}
 %\usepackage{helvet}
 \setlength{\columnsep}{1cm}
@@ -141,18 +141,154 @@ In phases 2 and 3, analysis will take a standard machine learning approach to va
 In order to parse out potential environmental effects, the final model will be used to predict the risk of prematurity using a homogenous population.  The maps on the following page provide examples of the outcome. By standardizing non-spatial features, risk by units as small as urban neighborhood (top left) as well as a spatial risk "surface" for entire cities (top right) can be constructed.  Likewise, at the regional level, individual comarcas can compare their county-wide risk score (bottom left), whereas regional authorities can identify spatial-temporal patterns in prematurity (bottom right).\footnote{All maps constructed using entirely simulated data.}  The population-standardized risk "surface" will be particularly useful in the detection of potential environmental exposures affecting fetal and maternal health.
 
 
+% <<results = hide>>=
+% # Read in dot map stuff
+% library(devtools)
+% # For creating dot map
+% source_url("https://raw.githubusercontent.com/joebrew/misc/master/dot_map/dot_map.R")
+% # For creating choropleth maps
+% source_url("https://raw.githubusercontent.com/joebrew/misc/master/functions/functions.R")
+% @
+% 
+% 
+% <<results = hide>>=
+% # Surface function
+% library(gstat)
+% library(geoR)
+% library(rgdal)
+% library(scatterplot3d)
+% library(RColorBrewer)
+% 
+% boundary <- collapse_map(bcn)
+% 
+% # Define color vector
+% my_colors <- colorRampPalette(c("grey", "darkred"))(100)
+% 
+% SurfaceFun <- function(var = bcn$Dones * coordinates(bcn)[,1] ,
+%                        boundary_shape = boundary,
+%                        shape = bcn,
+%                        barcelona = TRUE,
+%                        legend = TRUE){
+% 
+%   
+%   if(barcelona){
+%   boundary_points <- boundary_shape@polygons[[1]]@Polygons
+%   boundary_points <- boundary_points[[2]]@coords
+%   
+%   }else{
+%   boundary_shape <- spain1[which(spain1$NAME_1 == "Cataluña"),]
+% 
+%   boundary_points <- boundary_shape@polygons[[1]]@Polygons
+%   boundary_points <- boundary_points[[10]]@coords
+%   
+%   }
+%   # Getting the site counts 
+%   shape$lon <- coordinates(shape)[,1]
+%   shape$lat <- coordinates(shape)[,2]
+% 
+%   # Get trap locations and data values
+%   a <- data.frame("x" = shape$lon,
+%                   "y" = shape$lat,
+%                   "z" = var)
+%   # Make into a geodata object
+%   b <- as.geodata(a)
+%   
+%   # Predict multiple points in Alachua County's boundary
+%   x <- seq(min(boundary_points[,1]), max(boundary_points[,1]), length = 500)
+%   y <- seq(min(boundary_points[,2]), max(boundary_points[,2]), length = 500)
+%   
+%   # Make a grid of those points
+%   pred.grid <- expand.grid(x,y)
+%   
+%   
+%   # kriging calculations
+%   kc <- krige.conv(geodata = b, coords = b$coords, data = b$data,
+%                    locations = pred.grid,
+%                    borders = boundary_points,
+%                    #borders = boundary@polygons,
+%                    # borders = ALACHUA BORDERS!,
+%                    krige = krige.control(type.krige = "ok",
+%                                          cov.pars = c(1, 1000)))
+%   
+%   
+% 
+%   # Plot!
+%   # displaying predicted values
+%   image(kc, loc = pred.grid, 
+%         col = my_colors,
+%         xlab=NA, ylab=NA,
+%         xaxt = "n",
+%         yaxt = "n",
+%         xpd = NA,
+%         bty = "n")
+%   
+%   # Define percentiles for legend
+%   legtemp <-  round(quantile(kc$predict, probs = seq(0,1,, length = 10)))
+%   
+%   if(legend){
+%       legend(x="bottomright",
+%          fill = my_colors[c(1,11,22,33,44,55,66,77,88,100)],
+%          legend = rep(NA, 10), #c(legtemp[1], NA, NA, legtemp[4], NA, NA, legtemp[7], NA, NA, legtemp[10]),
+%          border = FALSE,
+%          bty = "n",
+%          ncol = 1,
+%          y.intersp = 0.5,
+%          title = "Risk score",
+%          cex = 0.55)
+%   }
+% 
+% }
+% 
+% @
+% 
+% \begin{center}
+% <<fig = TRUE, height = 3, results = hide>>=
+% my_colors <- colorRampPalette(c("darkred", "white", "grey"))(nrow(bcn))
+% 
+% par(oma = c(0,0,2,0))
+% par(mar = c(0,0,0,0))
+% par(mfrow = c(1,2))
+% # plot(bcn,
+% #      xlim = c(420000, 436000),
+% #      ylim = c(4575000, 4591000))
+% DotFun(main_shape = bcn,
+%        points_number = 1000,
+%        points_var = (bcn$Dones) ^ 0.8,
+%        border = "grey")
+% 
+% 
+% SurfaceFun()
+% box("outer")
+% title(main = "Barcelona", outer = T)
+% @
+% \end{center}
+% 
+% 
+% \begin{center}
+% <<fig = TRUE, height = 3, results = hide>>=
+% my_colors <- colorRampPalette(c("brown", "grey", "lightblue"))(nrow(muni))
+% boundary <- collapse_map(comarca)
+% 
+% par(oma = c(0,0,2,0))
+% par(mar = c(0,0,0,0))
+% par(mfrow = c(1,2))
+% 
+% DotFun(main_shape = comarca,
+%        points_number = 1000,
+%        points_var = jitter((comarca$SUP_COMAR/10) ^ 2, factor = 5),
+%        border = "grey")
+% SurfaceFun(var = comarca$SUP_COMAR ,
+%                        boundary_shape = boundary,
+%            shape = comarca,
+%            barcelona = FALSE,
+%            legend = FALSE)
+% box("outer")
+% title(main = "Catalonia", outer = T)
+% 
+% @
+% \end{center}
 
-
-
-\begin{center}
-\includegraphics{protocol-004}
-\end{center}
-
-
-\begin{center}
-\includegraphics{protocol-005}
-\end{center}
-
+\includegraphics[width = 180]{maps.jpg}
 
 
 
